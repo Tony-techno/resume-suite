@@ -26,6 +26,82 @@ const Textarea = ({label,value,onChange,rows=4,placeholder=''}) => (
   </div>
 )
 
+function analyzeSummary(summary) {
+  if (!summary || summary.length < 20) return { score: 0, tips: ['Write a summary of at least 2-3 sentences.'] }
+  const tips = []
+  let score = 40
+
+  if (summary.length > 100) score += 15
+  if (summary.length > 200) score += 10
+
+  const hasYears = /\d+\s*(year|month)/i.test(summary)
+  if (hasYears) score += 10
+  else tips.push('Mention your years of experience e.g. "2+ years of experience in..."')
+
+  const hasSkills = /(python|java|react|sql|machine learning|data|cloud|aws|node|django)/i.test(summary)
+  if (hasSkills) score += 10
+  else tips.push('Mention 2-3 key technical skills in your summary.')
+
+  const hasRole = /(engineer|developer|analyst|scientist|designer|manager|intern)/i.test(summary)
+  if (hasRole) score += 10
+  else tips.push('Include your job title or target role e.g. "Software Engineer" or "Data Analyst".')
+
+  const hasImpact = /(built|developed|improved|delivered|led|achieved|designed|optimized)/i.test(summary)
+  if (hasImpact) score += 5
+  else tips.push('Add at least one achievement verb like "Built", "Developed", or "Led".')
+
+  const firstPerson = /^i\s/i.test(summary.trim())
+  if (firstPerson) tips.push('Avoid starting with "I". Start with your role e.g. "Data Analyst with 2+ years..."')
+
+  if (tips.length === 0) tips.push('Your summary looks strong!')
+
+  return { score: Math.min(score, 100), tips }
+}
+
+function SummaryAnalyzer({ value, onChange }) {
+  const analysis = analyzeSummary(value)
+  const color = analysis.score >= 70 ? 'text-green-600' : analysis.score >= 40 ? 'text-yellow-600' : 'text-red-500'
+  const barColor = analysis.score >= 70 ? 'bg-green-500' : analysis.score >= 40 ? 'bg-yellow-500' : 'bg-red-500'
+
+  const exampleSummary = 'Results-driven Data Analyst with 1+ year of experience in Python, SQL, and Machine Learning. Developed predictive models that improved data processing efficiency by 30%. Passionate about turning raw data into actionable business insights.'
+
+  return (
+    <div className="space-y-3">
+      <Textarea label="Professional Summary" rows={5} value={value} onChange={onChange}
+        placeholder="Results-driven Data Analyst with 1+ year of experience in Python, SQL, and Machine Learning..." />
+      {value.length > 10 && (
+        <div className="border rounded-lg p-4 bg-gray-50 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-700">Summary Score</span>
+            <span className={"text-lg font-bold " + color}>{analysis.score}/100</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div className={"h-2 rounded-full transition-all " + barColor} style={{width: analysis.score + '%'}} />
+          </div>
+          <div className="space-y-1 mt-2">
+            {analysis.tips.map((tip, i) => (
+              <p key={i} className="text-xs text-gray-600 flex gap-1">
+                <span className={analysis.tips[0] === 'Your summary looks strong!' ? 'text-green-500' : 'text-amber-500'}>-</span>
+                {tip}
+              </p>
+            ))}
+          </div>
+          {analysis.score < 80 && (
+            <div className="mt-3 border-t pt-3">
+              <p className="text-xs font-medium text-gray-600 mb-1">Example of a strong summary:</p>
+              <p className="text-xs text-gray-500 italic">{exampleSummary}</p>
+              <button onClick={() => onChange(exampleSummary)}
+                className="mt-2 text-xs text-indigo-600 hover:underline">
+                Use this as a starting point (you can edit it)
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ResumePreview({ data }) {
   return (
     <div id="resume-preview" className="bg-white border rounded-xl p-8 shadow-sm max-w-2xl mx-auto text-gray-800 text-sm leading-relaxed">
@@ -70,7 +146,7 @@ function ResumePreview({ data }) {
         <section className="mb-4">
           <h2 className="font-bold uppercase tracking-widest text-xs text-indigo-700 border-b border-indigo-200 pb-1 mb-2">Education</h2>
           {data.education.filter(e=>e.institution).map((e,i) => (
-            <div key={i} className="flex justify-between">
+            <div key={i} className="flex justify-between mb-1">
               <span><span className="font-semibold">{e.degree}</span>, {e.institution}</span>
               <span className="text-gray-400 text-xs">{e.year}</span>
             </div>
@@ -120,8 +196,9 @@ export default function Builder() {
         <Input label="GitHub URL"   value={data.github}   onChange={v=>upd('github',v)}   placeholder="github.com/yourname" />
       </div>
     </div>,
-    <Textarea label="Professional Summary (2-3 sentences)" rows={5} value={data.summary}
-      onChange={v=>upd('summary',v)} placeholder="Results-driven software engineer with 2+ years experience..." />,
+
+    <SummaryAnalyzer value={data.summary} onChange={v=>upd('summary',v)} />,
+
     <div className="space-y-4">
       {data.experience.map((e,i) => (
         <div key={i} className="border rounded-lg p-4 space-y-3 bg-gray-50">
@@ -134,14 +211,18 @@ export default function Builder() {
             <Input label="Role"    value={e.role}    onChange={v=>updArr('experience',i,'role',v)}    placeholder="Software Engineer" />
             <Input label="Dates"   value={e.dates}   onChange={v=>updArr('experience',i,'dates',v)}   placeholder="Jun 2022 - Present" />
           </div>
-          <Textarea label="Bullets (one per line)" rows={4} value={e.bullets}
-            onChange={v=>updArr('experience',i,'bullets',v)}
-            placeholder={"Developed React dashboard used by 5000+ users\nReduced API response time by 40%"} />
+          <div>
+            <Textarea label="Bullets (one per line, start each with an action verb)" rows={5} value={e.bullets}
+              onChange={v=>updArr('experience',i,'bullets',v)}
+              placeholder={"Developed ML pipeline that improved accuracy by 25%\nAnalyzed 50K+ records using Python and SQL\nBuilt dashboards in Power BI for 3 business teams"} />
+            <p className="text-xs text-gray-400 mt-1">Tip: Start each bullet with a strong verb: Developed, Built, Analyzed, Improved, Designed, Led</p>
+          </div>
         </div>
       ))}
       <button onClick={() => setData(d=>({...d,experience:[...d.experience,{company:'',role:'',dates:'',bullets:''}]}))}
         className="text-indigo-600 text-sm hover:underline">+ Add Another Position</button>
     </div>,
+
     <div className="space-y-4">
       {data.education.map((e,i) => (
         <div key={i} className="border rounded-lg p-4 bg-gray-50">
@@ -155,32 +236,43 @@ export default function Builder() {
       <button onClick={() => setData(d=>({...d,education:[...d.education,{institution:'',degree:'',year:''}]}))}
         className="text-indigo-600 text-sm hover:underline">+ Add Another</button>
     </div>,
-    <Textarea label="Skills (comma-separated)" rows={4} value={data.skills}
-      onChange={v=>upd('skills',v)} placeholder="Python, React, FastAPI, PostgreSQL, Docker, Git" />,
+
+    <div className="space-y-2">
+      <Textarea label="Skills (comma-separated)" rows={3} value={data.skills}
+        onChange={v=>upd('skills',v)} placeholder="Python, SQL, Power BI, Pandas, NumPy, Machine Learning, TensorFlow, Git" />
+      <p className="text-xs text-gray-400">Tip: Include both technical skills and tools. Separate with commas.</p>
+    </div>,
+
     <div className="space-y-4">
       {data.projects.map((p,i) => (
         <div key={i} className="border rounded-lg p-4 space-y-3 bg-gray-50">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Input label="Project Name"     value={p.name} onChange={v=>updArr('projects',i,'name',v)} placeholder="Resume Intelligence Suite" />
-            <Input label="Tech Stack"       value={p.tech} onChange={v=>updArr('projects',i,'tech',v)} placeholder="React, FastAPI, spaCy" />
-            <Input label="GitHub/Live Link" value={p.link} onChange={v=>updArr('projects',i,'link',v)} placeholder="github.com/you/project" />
+            <Input label="Tech Stack"       value={p.tech} onChange={v=>updArr('projects',i,'tech',v)} placeholder="React, FastAPI, Python" />
+            <Input label="GitHub/Live Link" value={p.link} onChange={v=>updArr('projects',i,'link',v)} placeholder="github.com/Tony-techno/resume-suite" />
           </div>
-          <Textarea label="Description" rows={2} value={p.desc} onChange={v=>updArr('projects',i,'desc',v)}
-            placeholder="Built a full-stack resume analysis tool..." />
+          <div>
+            <Textarea label="Description (start with an action verb + impact)" rows={2} value={p.desc} onChange={v=>updArr('projects',i,'desc',v)}
+              placeholder="Built a full-stack resume analysis tool with ATS scoring, keyword gap analysis, and AI-powered tailoring." />
+            <p className="text-xs text-gray-400 mt-1">Tip: Mention what you built, the tech used, and the impact or purpose.</p>
+          </div>
         </div>
       ))}
       <button onClick={() => setData(d=>({...d,projects:[...d.projects,{name:'',desc:'',tech:'',link:''}]}))}
         className="text-indigo-600 text-sm hover:underline">+ Add Project</button>
     </div>,
+
     <div className="space-y-4">
       <ResumePreview data={data} />
-      <div className="flex gap-3 justify-center">
+      <div className="flex gap-3 justify-center flex-wrap">
         <button onClick={() => window.print()}
-          className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700">
+          className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 text-sm">
           Print / Save as PDF
         </button>
       </div>
-      <p className="text-center text-xs text-gray-400">Use browser Print then Save as PDF for best results</p>
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-blue-700 text-xs text-center">
+        When print dialog opens: set Destination to "Save as PDF", turn off Headers and Footers, set margins to None or Minimum.
+      </div>
     </div>
   ]
 
@@ -188,7 +280,7 @@ export default function Builder() {
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-bold text-gray-800">Resume Builder</h2>
-        <p className="text-gray-500 text-sm mt-1">Build your resume from scratch. Export to PDF via browser print.</p>
+        <p className="text-gray-500 text-sm mt-1">Build your resume step by step. Each section has tips to improve your score.</p>
       </div>
       <div className="flex gap-1 overflow-x-auto">
         {STEPS.map((s,i) => (
